@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>사각지대 접근 경고 시스템 (진단 모드)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen p-4 flex flex-col items-center">
+
+    <div class="max-w-md w-full space-y-4">
+        <!-- 헤더 -->
+        <div class="text-center pb-4 border-b border-gray-700">
+            <h1 class="text-xl font-bold text-emerald-400">PROXIMITY GUARD</h1>
+            <p class="text-xs text-gray-400">GPS 기반 보행자 안전 경고 시스템</p>
+        </div>
+
+        <!-- GPS 진단 패널 -->
+        <div class="bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700">
+            <h2 class="text-sm font-bold text-gray-300 mb-3">내 스마트폰 GPS 수신 진단</h2>
+            
+            <div id="gps-status-box" class="p-3 mb-3 rounded-lg bg-gray-900 border border-gray-600 text-sm">
+                대기 중... (아래 버튼을 눌러주세요)
+            </div>
+
+            <button onclick="startGPS()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition">
+                위치 권한 요청 및 GPS 수신 시작
+            </button>
+        </div>
+
+        <!-- 진단 결과 안내 (중요) -->
+        <div id="error-guide" class="hidden bg-red-900/50 p-4 rounded-xl border border-red-500 text-sm space-y-2">
+            <h3 class="font-bold text-red-400">🚨 GPS 수신 실패 원인 분석</h3>
+            <p id="error-detail" class="text-gray-200"></p>
+        </div>
+    </div>
+
+    <script>
+        const statusBox = document.getElementById('gps-status-box');
+        const errorGuide = document.getElementById('error-guide');
+        const errorDetail = document.getElementById('error-detail');
+
+        function startGPS() {
+            statusBox.innerHTML = '<span class="text-amber-400">위성 신호 탐색 중... (야외로 이동해주세요)</span>';
+            errorGuide.classList.add('hidden');
+
+            // 1. 프로토콜 체크 (HTTPS 또는 로컬 파일인지 확인)
+            if (window.location.protocol === 'file:') {
+                showError("현재 스마트폰에 저장된 HTML 파일을 직접 실행하셨습니다. 모바일 브라우저는 보안상 파일 실행(file://) 환경에서 GPS 사용을 완벽히 차단합니다. 웹 서버(HTTPS)에 업로드해야만 작동합니다.");
+                return;
+            }
+
+            if (!navigator.geolocation) {
+                showError("이 브라우저는 위치 정보를 지원하지 않습니다.");
+                return;
+            }
+
+            navigator.geolocation.watchPosition(
+                (position) => {
+                    // 성공 시
+                    errorGuide.classList.add('hidden');
+                    const lat = position.coords.latitude.toFixed(5);
+                    const lng = position.coords.longitude.toFixed(5);
+                    const accuracy = position.coords.accuracy.toFixed(1);
+                    
+                    statusBox.innerHTML = `
+                        <div class="text-emerald-400 font-bold mb-1">✅ 수신 성공!</div>
+                        <div>위도: ${lat}</div>
+                        <div>경도: ${lng}</div>
+                        <div class="text-xs text-gray-400 mt-1">오차 범위: ${accuracy}m</div>
+                    `;
+                },
+                (error) => {
+                    // 에러 발생 시 원인 분석
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            showError("위치 권한이 거부되었습니다. 스마트폰 설정에서 위치 권한이 켜져 있더라도, 브라우저(크롬/삼성인터넷 등) 자체의 권한이 꺼져 있거나 HTTPS 환경이 아니어서 강제로 차단된 상태입니다.");
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            showError("위치 정보를 가져올 수 없습니다. 실내에 계시거나 기기의 GPS 센서가 위성 신호를 잡지 못하고 있습니다. 탁 트인 야외로 나가보세요.");
+                            break;
+                        case error.TIMEOUT:
+                            showError("신호 응답 시간이 초과되었습니다. 스마트폰이 절전 모드이거나 신호가 너무 약합니다.");
+                            break;
+                        default:
+                            showError("알 수 없는 오류로 GPS를 켤 수 없습니다.");
+                            break;
+                    }
+                },
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+            );
+        }
+
+        function showError(message) {
+            statusBox.innerHTML = '<span class="text-red-400 font-bold">❌ 수신 실패</span>';
+            errorGuide.classList.remove('hidden');
+            errorDetail.innerText = message;
+        }
+    </script>
+</body>
+</html>
